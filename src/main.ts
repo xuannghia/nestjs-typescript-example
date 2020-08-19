@@ -1,10 +1,19 @@
 import { NestExpressApplication } from '@nestjs/platform-express'
 import { NestFactory } from '@nestjs/core'
-import * as helmet from 'helmet'
 import { AppModule } from './app.module'
-import { CORS_WHITELIST, PORT } from './app.environments'
+import {
+  CORS_WHITELIST,
+  MAX_AGE,
+  PORT,
+  REDIS_URL,
+  SESSION_SECRET,
+} from './app.environments'
 import { Logger } from '@nestjs/common'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import * as helmet from 'helmet'
+import * as session from 'express-session'
+import * as IoRedis from 'ioredis'
+import * as connectRedis from 'connect-redis'
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule)
@@ -16,6 +25,19 @@ async function bootstrap() {
     res.set('Access-Control-Allow-Credentials', 'true')
     next()
   })
+
+  // SESSION
+  const RedisStore = connectRedis(session)
+  app.set('trust proxy', 1)
+  app.use(
+    session({
+      store: new RedisStore({ client: new IoRedis(REDIS_URL) }),
+      secret: SESSION_SECRET,
+      resave: false,
+      saveUninitialized: true,
+      cookie: { maxAge: MAX_AGE, secure: true, sameSite: 'none' },
+    }),
+  )
 
   // CORS
   const corsOptions = {
